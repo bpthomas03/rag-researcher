@@ -1,0 +1,27 @@
+# Top-cited SLSN-related papers in the rolling past year (OpenAlex), then backward citation crawl.
+mailto: null
+
+seed_discovery:
+  limit: 10
+  # Default mode: relevance pool → title gate → most-cited (see models.SeedDiscovery)
+  # discovery_mode: top_cited_in_filters   # old behavior: global top citations in filters only
+  relevance_search: "superluminous supernova SLSN"
+  title_and_abstract_phrase: "superluminous supernova"
+  years_back: 1
+  work_types:
+    - article
+    - review
+  # require_title_substrings: []   # disable title gate; only if you trust search alone
+
+crawl:
+  max_depth: 1
+  max_works: 40
+  max_references_per_work: 50
+  reference_selection: scored
+  reference_score_cap: 120
+  reference_openalex_search: "superluminous supernova SLSN"
+  reference_title_gate_substrings: ["superluminous", "slsn", "slsne"]
+  reference_expansion_gate_keywords: ["superluminous", "slsn", "slsne"]
+  reference_expansion_bypass_depth: 0
+  reference_lookup_batch_size: 45
+  request_delay_ms: 100

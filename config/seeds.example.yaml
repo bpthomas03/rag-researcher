@@ -1,0 +1,65 @@
+# Use exactly ONE of: manual `seeds` or `seed_discovery`.
+mailto: "you@example.com"  # or set OPENALEX_MAILTO
+
+# --- Option A: manual seeds (DOI, W…, or https://doi.org/…)
+seeds:
+  - "10.1126/science.1203601"
+  - "10.1146/annurev-astro-081817-051819"
+  - "10.1038/s41550-019-0854-4"
+  - "10.1093/astrogeo/atab092"
+  - "10.1007/s11214-018-0493-6"
+  - "10.1007/978-3-319-20794-0_41-1"
+  - "10.1038/nature10095"
+  - "10.1093/mnras/stx2352"
+  - "10.1093/mnras/stae2270"
+  - "10.48550/arXiv.2103.05230"
+
+# --- Option B: SLSN-ish seeds from the past year (OpenAlex)
+# seed_discovery:
+#   limit: 10
+#   # search_relevance_then_top_cited (default): BM25 pool, title substring gate, then citations.
+#   # top_cited_in_filters: sort whole filtered corpus by citations only (broader / noisier).
+#   discovery_mode: search_relevance_then_top_cited
+#   candidate_pool: 80
+#   relevance_search: "superluminous supernova SLSN"
+#   title_and_abstract_phrase: "superluminous supernova"
+#   years_back: 1                    # rolling window ending at to_publication_date or today
+#   # from_publication_date: 2025-01-01
+#   # to_publication_date: 2026-04-17
+#   work_types:
+#     - article
+#     - review
+#   # Title must contain one of these (case-insensitive). [] disables the gate.
+#   require_title_substrings: ["superluminous", "slsn", "slsne"]
+#   # extra_search: "..."           # if set, replaces relevance_search for BM25 pool mode
+
+crawl:
+  max_depth: 2
+  max_works: 500
+  max_references_per_work: 50
+  # scored (default): keywords + log(citations) + optional OpenAlex BM25 over ref IDs
+  # top_cited | openalex_order
+  reference_selection: scored
+  reference_score_cap: 120
+  reference_keywords: ["superluminous", "slsn", "slsne", "magnetar", "circumstellar"]
+  reference_keyword_weight: 2.0
+  reference_citation_weight: 1.0
+  reference_openalex_search: "superluminous supernova SLSN"
+  reference_openalex_search_weight: 1.5
+  reference_title_gate_substrings: ["superluminous", "slsn", "slsne"]
+  # Stop BFS explosion from survey/software papers: only on-topic nodes expand their refs.
+  reference_expansion_gate_keywords: ["superluminous", "slsn", "slsne"]
+  reference_expansion_bypass_depth: 0
+  crossref_references_fallback: true
+  crossref_references_cap: 350
+  reference_lookup_batch_size: 45
+  request_delay_ms: 100
+  # --- Forward pass (who cites your anchors): runs after backward BFS, same edge direction (from cites to).
+  forward_crawl: true
+  forward_max_depth: 2
+  forward_max_per_work: 50
+  forward_citing_pool_cap: 150
+  forward_title_and_abstract_phrase: "superluminous"   # OpenAlex AND filter; strongly reduces drift
+  forward_from: gated_graph   # seeds | gated_graph
+  forward_expansion_gate_keywords: null   # null = reuse reference_expansion_gate_keywords
+  forward_expansion_bypass_depth: 0
