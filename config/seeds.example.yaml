@@ -1,7 +1,14 @@
-# Use exactly ONE of: manual `seeds` or `seed_discovery`.
-mailto: "you@example.com"  # or set OPENALEX_MAILTO
+# =============================================================================
+# Citation-graph crawl example config
+# Use exactly ONE seed source: `seeds` OR `seed_discovery`.
+# =============================================================================
 
-# --- Option A: manual seeds (DOI, W…, or https://doi.org/…)
+mailto: "you@example.com"  # Or set OPENALEX_MAILTO in your shell.
+
+# -----------------------------------------------------------------------------
+# Option A (active): manual seed papers
+# Accepts DOI, DOI URL, or OpenAlex work id (W...).
+# -----------------------------------------------------------------------------
 seeds:
   - "10.1126/science.1203601"
   - "10.1146/annurev-astro-081817-051819"
@@ -14,30 +21,37 @@ seeds:
   - "10.1093/mnras/stae2270"
   - "10.48550/arXiv.2103.05230"
 
-# --- Option B: SLSN-ish seeds from the past year (OpenAlex)
+# -----------------------------------------------------------------------------
+# Option B (disabled): discover recent seeds from OpenAlex
+# Uncomment this block and comment out `seeds:` above.
+# -----------------------------------------------------------------------------
 # seed_discovery:
 #   limit: 10
-#   # search_relevance_then_top_cited (default): BM25 pool, title substring gate, then citations.
-#   # top_cited_in_filters: sort whole filtered corpus by citations only (broader / noisier).
+#   # search_relevance_then_top_cited (default): relevance pool, then top cited.
+#   # top_cited_in_filters: directly top cited in full filtered set.
 #   discovery_mode: search_relevance_then_top_cited
 #   candidate_pool: 80
 #   relevance_search: "superluminous supernova SLSN"
 #   title_and_abstract_phrase: "superluminous supernova"
-#   years_back: 1                    # rolling window ending at to_publication_date or today
+#   years_back: 1  # rolling window ending at today (or to_publication_date)
 #   # from_publication_date: 2025-01-01
 #   # to_publication_date: 2026-04-17
-#   work_types:
-#     - article
-#     - review
-#   # Title must contain one of these (case-insensitive). [] disables the gate.
+#   work_types: [article, review]
+#   # [] disables title gate.
 #   require_title_substrings: ["superluminous", "slsn", "slsne"]
-#   # extra_search: "..."           # if set, replaces relevance_search for BM25 pool mode
+#   # extra_search: "..."  # optional override for relevance_search
 
+# =============================================================================
+# Crawl settings
+# =============================================================================
 crawl:
+  # ----- Global traversal budget
   max_depth: 2
   max_works: 500
+
+  # ----- Backward pass (references)
   max_references_per_work: 50
-  # scored (default): keywords + log(citations) + optional OpenAlex BM25 over ref IDs
+  # scored (default): keyword + citation + optional OpenAlex search score
   # top_cited | openalex_order
   reference_selection: scored
   reference_score_cap: 120
@@ -47,19 +61,74 @@ crawl:
   reference_openalex_search: "superluminous supernova SLSN"
   reference_openalex_search_weight: 1.5
   reference_title_gate_substrings: ["superluminous", "slsn", "slsne"]
-  # Stop BFS explosion from survey/software papers: only on-topic nodes expand their refs.
+
+  # Expand references only from on-topic nodes (limits hub explosion).
   reference_expansion_gate_keywords: ["superluminous", "slsn", "slsne"]
   reference_expansion_bypass_depth: 0
-  crossref_references_fallback: true
-  crossref_references_cap: 350
+
+  # OpenAlex/Crossref request tuning
   reference_lookup_batch_size: 45
   request_delay_ms: 100
-  # --- Forward pass (who cites your anchors): runs after backward BFS, same edge direction (from cites to).
+  crossref_references_fallback: true
+  crossref_references_cap: 350
+
+  # ----- Forward pass (papers that cite your anchors)
   forward_crawl: true
   forward_max_depth: 2
   forward_max_per_work: 50
   forward_citing_pool_cap: 150
-  forward_title_and_abstract_phrase: "superluminous"   # OpenAlex AND filter; strongly reduces drift
-  forward_from: gated_graph   # seeds | gated_graph
-  forward_expansion_gate_keywords: null   # null = reuse reference_expansion_gate_keywords
+  # OpenAlex AND filter on citing papers; strong anti-drift control.
+  forward_title_and_abstract_phrase: "superluminous"
+  # seeds | gated_graph
+  forward_from: gated_graph
+  # null => reuse reference_expansion_gate_keywords
+  forward_expansion_gate_keywords: null
   forward_expansion_bypass_depth: 0
+
+  # ----- Node policy: include vs continue decisions
+  # include_threshold should be <= continue_threshold.
+  node_policy:
+    enabled: true
+    # null => reuse reference_expansion_gate_keywords
+    keywords: null
+    keyword_weight: 1.6
+
+    # Venue hinting (fast prior)
+    venue_substrings:
+      - "apj"
+      - "astrophysical journal"
+      - "mnras"
+      - "monthly notices"
+      - "astronomy & astrophysics"
+      - "a&a"
+      - "nature astronomy"
+    venue_weight: 0.5
+
+    # Structural scoring
+    citation_weight: 0.5
+    depth_penalty_weight: 0.35
+    depth_penalty_start: 1
+    forward_direction_bonus: 0.3
+    seed_anchor_bonus: 3.0
+
+    # Decision thresholds
+    include_threshold: 1.6
+    continue_threshold: 2.8
+
+    # Borderline embedding rescue
+    embedding_enabled: true
+    embedding_margin: 0.5
+    embedding_alpha: 1.0
+    embedding_include_similarity: 0.16
+    embedding_continue_similarity: 0.22
+    debug_sample_limit: 25
+
+# =============================================================================
+# Optional local RAG defaults (used by CLI flags, not parsed by crawl)
+# =============================================================================
+# rag:
+#   chroma_dir: corpus/chroma
+#   collection: slsn_chunks
+#   ollama_url: http://localhost:11434
+#   embedding_model: nomic-embed-text
+#   chat_model: llama3.1:8b

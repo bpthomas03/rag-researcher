@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SLSN RAG Chat</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; max-width: 980px; }
+    textarea { width: 100%; min-height: 90px; }
+    button { padding: 8px 14px; margin-top: 8px; }
+    pre { white-space: pre-wrap; background: #f5f5f7; padding: 12px; border-radius: 8px; }
+    .cit { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>SLSN Expert RAG</h1>
+  <p>Ask questions against your indexed SLSN corpus.</p>
+  <textarea id="q" placeholder="Ask about SLSN mechanisms, rates, spectra, progenitors..."></textarea>
+  <br />
+  <button id="askBtn">Ask</button>
+  <h2>Answer</h2>
+  <pre id="answer"></pre>
+  <h2>Citations</h2>
+  <div id="cits"></div>
+
+  <script>
+    const askBtn = document.getElementById("askBtn");
+    askBtn.addEventListener("click", async () => {
+      const q = document.getElementById("q").value.trim();
+      if (!q) return;
+      document.getElementById("answer").textContent = "Thinking...";
+      document.getElementById("cits").innerHTML = "";
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, top_k: 8 })
+      });
+      const data = await res.json();
+      document.getElementById("answer").textContent = data.answer || "";
+      const cits = data.citations || [];
+      const citsEl = document.getElementById("cits");
+      for (const c of cits) {
+        const div = document.createElement("div");
+        div.className = "cit";
+        const title = c.title || c.openalex_id || "citation";
+        const doi = c.doi ? `https://doi.org/${String(c.doi).replace("https://doi.org/", "")}` : "";
+        div.innerHTML = `
+          <strong>${title}</strong><br/>
+          ${c.openalex_id ? `<code>${c.openalex_id}</code><br/>` : ""}
+          ${doi ? `<a href="${doi}" target="_blank" rel="noopener noreferrer">${doi}</a><br/>` : ""}
+          <small>${c.source_path || ""}</small>
+          <p>${c.snippet || ""}</p>
+        `;
+        citsEl.appendChild(div);
+      }
+    });
+  </script>
+</body>
+</html>

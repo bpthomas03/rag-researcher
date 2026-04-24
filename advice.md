@@ -34,3 +34,12 @@ The current codebase focuses on **OpenAlex-backed backward expansion**, **seed d
 **Expansion gate (implemented):** highly cited “hub” papers (software, wide-field surveys, methods) can still enter via a single weak link; their bibliographies are enormous and mostly off-topic. The crawler can require **topic keywords in title or abstract** before a node is allowed to **expand its own references** (seeds bypass this by default via `reference_expansion_bypass_depth`). Tune keywords vs. how aggressively you want foundational non-SLSN-titled papers to branch.
 
 **OpenAlex empty bibliographies:** some works (often very new) have **`referenced_works` empty in OpenAlex** while Crossref still lists hundreds of references. That makes a seed look “dead” in the graph (no outgoing edges). The crawler can **fall back to Crossref** for reference DOIs and resolve them to OpenAlex ids (`crossref_references_fallback` in crawl settings).
+
+
+**ideas for rule-based continuation per node**
+
+Embedding-based halting — embed each candidate paper and measure cosine similarity to your seed set centroid. If it falls below some threshold, don't traverse. Simple and fast, but blunt.
+LLM-based classification — at each node, pass the abstract to a small LLM and ask "is this paper within the domain of X?" More accurate but expensive at scale. Could be reserved for borderline cases.
+Citation asymmetry — a paper that cites your seed papers is probably more relevant than one that is merely cited by them. Directionality of the edge matters. You could weight traversal differently depending on direction.
+Depth penalties — relevance tends to decay with graph distance from seeds. Hard stopping at depth 2 or 3 with tight filters is often more practical than trying to be clever about it.
+Venue/journal filtering — for SLSN specifically, papers in ApJ, MNRAS, A&A, Nature Astronomy are almost certainly relevant. A paper in a condensed matter journal that somehow got linked in probably isn't. Venue as a fast pre-filter before anything expensive.

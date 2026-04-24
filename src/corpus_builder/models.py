@@ -6,6 +6,74 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+class NodeDecision(BaseModel):
+    include_in_graph: bool
+    continue_traversal: bool
+    score: float
+    reasons: list[str] = Field(default_factory=list)
+    embedding_similarity: float | None = None
+
+
+class NodePolicySettings(BaseModel):
+    enabled: bool = Field(
+        default=True,
+        description="Enable include/continue policy per node; false falls back to legacy gate behavior.",
+    )
+    keywords: list[str] | None = Field(
+        default=None,
+        description="If provided, used for keyword relevance scoring; None reuses reference_expansion_gate_keywords.",
+    )
+    keyword_weight: float = Field(default=1.1, ge=0.0)
+    venue_substrings: list[str] = Field(
+        default_factory=lambda: [
+            "apj",
+            "astrophysical journal",
+            "mnras",
+            "monthly notices",
+            "astronomy & astrophysics",
+            "a&a",
+            "nature astronomy",
+        ]
+    )
+    venue_weight: float = Field(default=1.0, ge=0.0)
+    citation_weight: float = Field(default=0.5, ge=0.0)
+    depth_penalty_weight: float = Field(default=0.35, ge=0.0)
+    depth_penalty_start: int = Field(default=1, ge=0, le=10)
+    forward_direction_bonus: float = Field(default=0.3)
+    seed_anchor_bonus: float = Field(default=3.0)
+    include_threshold: float = Field(default=1.6)
+    continue_threshold: float = Field(default=2.8)
+    embedding_enabled: bool = Field(
+        default=True,
+        description="Run lexical embedding similarity for borderline nodes only.",
+    )
+    embedding_margin: float = Field(default=0.5, ge=0.0)
+    embedding_alpha: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Score adjustment multiplier for embedding cosine similarity.",
+    )
+    embedding_include_similarity: float = Field(
+        default=0.16,
+        ge=-1.0,
+        le=1.0,
+        description="Minimum cosine similarity to rescue include for borderline nodes.",
+    )
+    embedding_continue_similarity: float = Field(
+        default=0.22,
+        ge=-1.0,
+        le=1.0,
+        description="Minimum cosine similarity to rescue continue for borderline nodes.",
+    )
+    debug_sample_limit: int = Field(default=25, ge=0, le=200)
+
+    @model_validator(mode="after")
+    def _thresholds(self) -> NodePolicySettings:
+        if self.continue_threshold < self.include_threshold:
+            raise ValueError("node_policy.continue_threshold must be >= include_threshold")
+        return self
+
+
 class CrawlSettings(BaseModel):
     max_depth: int = Field(ge=0, default=2)
     max_works: int = Field(ge=1, default=800)
@@ -139,6 +207,7 @@ class CrawlSettings(BaseModel):
         le=10,
         description="Same idea as reference_expansion_bypass_depth: seeds/citers at depth <= N always expand.",
     )
+    node_policy: NodePolicySettings = Field(default_factory=NodePolicySettings)
 
     @model_validator(mode="after")
     def _forward_requires_depth(self) -> CrawlSettings:
@@ -243,4 +312,25 @@ class WorkRecord(BaseModel):
     referenced_work_ids: list[str] = Field(default_factory=list)
     primary_location_pdf: str | None = None
     primary_location_landing: str | None = None
+    primary_location_source: str | None = None
     abstract: str | None = None
+
+
+class PdfManifestEntry(BaseModel):
+    openalex_id: str
+    doi: str | None = None
+    title: str | None = None
+    source_url: str | None = None
+    local_path: str | None = None
+    status: Literal["downloaded", "skipped", "failed"]
+    reason: str | None = None
+
+
+class ChunkRecord(BaseModel):
+    chunk_id: str
+    openalex_id: str
+    doi: str | None = None
+    title: str | None = None
+    source_path: str
+    chunk_index: int
+    text: str
